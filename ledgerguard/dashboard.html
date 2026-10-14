@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LedgerGuard</title>
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--fg:#1b2430;--mut:#667085;--line:#e4e7ec;--accent:#2a5bd7;
+--critical:#b42318;--high:#d9480f;--medium:#b7791f;--low:#475467}
+@media (prefers-color-scheme:dark){:root{--bg:#10141b;--card:#181e28;--fg:#e8ecf3;--mut:#9aa4b5;--line:#2a3342;--accent:#7aa2ff;
+--critical:#ff7b72;--high:#ffa657;--medium:#e3b341;--low:#9aa4b5}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:17px;margin:0;margin-right:auto}main{padding:16px;max-width:1100px;margin:auto}
+input,select,button{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+button{cursor:pointer}button.p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}
+.tile b{display:block;font-size:26px}.tile span{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:600;font-size:12px}
+.sev{font-weight:700;text-transform:uppercase;font-size:11px}.sev.critical{color:var(--critical)}.sev.high{color:var(--high)}.sev.medium{color:var(--medium)}.sev.low{color:var(--low)}
+.bar{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}#msg{color:var(--mut)}
+.wrap{overflow-x:auto}h2{font-size:15px;margin:18px 0 8px}small{color:var(--mut);font-weight:400}
+.case{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--critical);border-radius:8px;padding:12px;margin-bottom:10px}.case p{margin:6px 0}
+</style></head><body>
+<header><h1>LedgerGuard</h1>
+<input id="key" type="password" placeholder="API key" size="22" aria-label="API key">
+<button class="p" id="go">Load</button></header>
+<main>
+<div class="tiles" id="tiles"></div>
+<h2>Cases <small id="chain"></small></h2><div id="cases"></div>
+<h2>All alerts</h2>
+<div class="bar">
+<select id="sev" aria-label="Severity"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
+<select id="st" aria-label="Status"><option value="open">Open</option><option value="">All statuses</option><option>acknowledged</option><option>resolved</option><option>false_positive</option></select>
+<button id="csv">Export CSV</button><span id="msg"></span></div>
+<div class="wrap"><table><thead><tr><th>Severity</th><th>Type</th><th>Detail</th><th>Accounts</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let key="";try{key=sessionStorage.getItem("lgkey")||""}catch(e){}
+$("key").value=key;
+const api=async(p,o={})=>{const r=await fetch(p,{...o,headers:{"X-API-Key":$("key").value,"Content-Type":"application/json"}});
+ if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r};
+const el=(t,txt,c)=>{const e=document.createElement(t);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e};
+async function load(){
+ $("msg").textContent="";
+ try{sessionStorage.setItem("lgkey",$("key").value)}catch(e){}
+ try{
+  const s=await(await api("/v1/summary")).json();
+  const t=$("tiles");t.replaceChildren();
+  for(const sv of["critical","high","medium","low"]){const d=el("div",null,"tile");d.append(el("span",sv+" open"),el("b",s.open_by_severity[sv]||0));t.append(d)}
+  if(s.last_run){const d=el("div",null,"tile");d.append(el("span","trades checked"),el("b",s.last_run.counts.trades.toLocaleString()));t.append(d)}
+  const cs=await(await api("/v1/cases")).json(),cd=$("cases");cd.replaceChildren();
+  for(const c of cs.slice(0,5)){const d=el("div",null,"case");
+   d.append(el("b",`Score ${c.score} · ${c.severity.toUpperCase()} · ${c.alert_ids.length} alerts · ${c.accounts.join(", ")}`),el("p",c.narrative));
+   const b=el("button","Download evidence packet");b.onclick=async()=>{const r=await(await api(`/v1/cases/${c.case_id}/packet`)).blob();
+    const a=el("a");a.href=URL.createObjectURL(r);a.download=`case_${c.case_id}.json`;a.click()};d.append(b);cd.append(d)}
+  if(!cs.length)cd.append(el("p","No correlated cases."));
+  const v=await(await api("/v1/ledger/verify")).json();$("chain").textContent=v.ok?"· ledger verified ("+v.detail+")":"· LEDGER TAMPERED: "+v.detail;
+  const q=new URLSearchParams();if($("sev").value)q.set("severity",$("sev").value);if($("st").value)q.set("status",$("st").value);
+  const al=await(await api("/v1/alerts?"+q)).json();const tb=$("rows");tb.replaceChildren();
+  for(const a of al){const tr=el("tr");
+   tr.append(el("td",a.severity,"sev "+a.severity),el("td",a.kind),el("td",a.message),el("td",a.accounts.join(", ")));
+   const td=el("td"),sel=el("select");
+   for(const v of["open","acknowledged","resolved","false_positive"]){const o=el("option",v);o.value=v;sel.append(o)}
+   sel.value=a.status;sel.onchange=async()=>{await api(`/v1/alerts/${a.alert_id}/status`,{method:"POST",body:JSON.stringify({status:sel.value})});load()};
+   td.append(sel);tr.append(td);tb.append(tr)}
+  if(!al.length)$("msg").textContent="No alerts match.";
+ }catch(e){$("msg").textContent="Error: "+e.message}
+}
+$("go").onclick=load;$("sev").onchange=load;$("st").onchange=load;
+$("csv").onclick=async()=>{try{const b=await(await api("/v1/report.csv")).blob();const a=el("a");a.href=URL.createObjectURL(b);a.download="ledgerguard_report.csv";a.click()}catch(e){$("msg").textContent="Error: "+e.message}};
+if(key)load();
+</script></body></html>
