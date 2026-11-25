@@ -268,7 +268,7 @@ function match(q){
     let s=0; for(const w of t){ if(e.keys.some(k=>k===w || (w.length>3 && (k.startsWith(w)||w.startsWith(k))))) s++; }
     if(s>score){ score=s; best=e; }
   }
-  return score>=1 ? { entry:best, score, conf: Math.min(1, score/Math.max(2,t.length)) } : null;
+  return score>=1 ? { entry:best, score, conf: Math.min(1, score/2) } : null;
 }
 
 /* ---------- Rendering ---------- */

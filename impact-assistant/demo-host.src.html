@@ -1,0 +1,28 @@
+<title>Help Widget Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root { --bg:#eef1f4; --panel:#fff; --ink:#16212b; --muted:#5b6875; --line:#dde3e9; --bar:#243746; --bar-ink:#fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f161c; --panel:#17212a; --ink:#e8eef3; --muted:#9aa8b5; --line:#2a3742; --bar:#0b1218; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#0f161c; --panel:#17212a; --ink:#e8eef3; --muted:#9aa8b5; --line:#2a3742; --bar:#0b1218; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: Inter, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+.bar { background: var(--bar); color: var(--bar-ink); padding: 12px max(16px, env(safe-area-inset-left, 0px)); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.bar b { font-size: 16px; } .bar span { opacity: .75; font-size: 13px; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-left, 0px)) 120px; display: grid; gap: 16px; }
+.note { border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px; color: var(--muted); background: var(--panel); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 15px; }
+.line { height: 10px; border-radius: 5px; background: var(--line); margin: 8px 0; }
+table { width: 100%; border-collapse: collapse; } td { padding: 8px 4px; border-top: 1px solid var(--line); color: var(--muted); }
+</style>
+<div class="bar"><b>Host application</b><span>Mock screen. Your real system or intranet goes here.</span></div>
+<div class="wrap">
+  <div class="note">This page stands in for any web system. The round help button at the bottom-right comes from one script tag: <code>&lt;script src="impact-helpdesk-widget.js" defer&gt;&lt;/script&gt;</code>. Click it to open the assistant.</div>
+  <div class="grid">
+    <div class="card"><h2>My work queue</h2><div class="line" style="width:80%"></div><div class="line" style="width:60%"></div><div class="line" style="width:70%"></div></div>
+    <div class="card"><h2>Pending approvals</h2><div class="line" style="width:50%"></div><div class="line" style="width:90%"></div><div class="line" style="width:40%"></div></div>
+    <div class="card"><h2>Recent activity</h2><table><tr><td>Item updated</td><td>Today</td></tr><tr><td>Item submitted</td><td>Yesterday</td></tr><tr><td>Item approved</td><td>Mon</td></tr></table></div>
+  </div>
+</div>
+<script src="impact-helpdesk-widget.js" defer></script>

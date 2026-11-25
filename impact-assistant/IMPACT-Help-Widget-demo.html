@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Help Widget Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root { --bg:#eef1f4; --panel:#fff; --ink:#16212b; --muted:#5b6875; --line:#dde3e9; --bar:#243746; --bar-ink:#fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f161c; --panel:#17212a; --ink:#e8eef3; --muted:#9aa8b5; --line:#2a3742; --bar:#0b1218; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#0f161c; --panel:#17212a; --ink:#e8eef3; --muted:#9aa8b5; --line:#2a3742; --bar:#0b1218; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: Inter, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+.bar { background: var(--bar); color: var(--bar-ink); padding: 12px max(16px, env(safe-area-inset-left, 0px)); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.bar b { font-size: 16px; } .bar span { opacity: .75; font-size: 13px; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-left, 0px)) 120px; display: grid; gap: 16px; }
+.note { border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px; color: var(--muted); background: var(--panel); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 15px; }
+.line { height: 10px; border-radius: 5px; background: var(--line); margin: 8px 0; }
+table { width: 100%; border-collapse: collapse; } td { padding: 8px 4px; border-top: 1px solid var(--line); color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="bar"><b>Host application</b><span>Mock screen. Your real system or intranet goes here.</span></div>
+<div class="wrap">
+  <div class="note">This page stands in for any web system. The round help button at the bottom-right comes from one script tag: <code>&lt;script src="impact-helpdesk-widget.js" defer&gt;&lt;/script&gt;</code>. Click it to open the assistant.</div>
+  <div class="grid">
+    <div class="card"><h2>My work queue</h2><div class="line" style="width:80%"></div><div class="line" style="width:60%"></div><div class="line" style="width:70%"></div></div>
+    <div class="card"><h2>Pending approvals</h2><div class="line" style="width:50%"></div><div class="line" style="width:90%"></div><div class="line" style="width:40%"></div></div>
+    <div class="card"><h2>Recent activity</h2><table><tr><td>Item updated</td><td>Today</td></tr><tr><td>Item submitted</td><td>Yesterday</td></tr><tr><td>Item approved</td><td>Mon</td></tr></table></div>
+  </div>
+</div>
+<script>
+/*!
+ * IMPACT Help Desk widget (prototype)
+ * Drop-in floating help assistant. One script tag, no dependencies.
+ *
+ *   [script] window.ImpactHelpDeskConfig = { endpoint: null, title: "IMPACT Help" };
+ *   [script src="impact-helpdesk-widget.js" defer][/script]
+ *
+ * endpoint: null  -> uses the built-in SAMPLE knowledge base (demo mode).
+ * endpoint: "https://.../api/ask" -> POSTs {question, role, sessionId}
+ *   and expects {found:boolean, summary, steps:[], sources:[{type,title,meta,url}], confidence:0..1}
+ * Styles live in a Shadow DOM so the widget cannot clash with the host application's CSS.
+ */
+(function () {
+  if (window.__impactHelpDesk) return;
+  window.__impactHelpDesk = true;
+
+  var cfg = Object.assign({ title: 'IMPACT Help', endpoint: null, escalateUrl: null, role: 'caseworker' }, window.ImpactHelpDeskConfig || {});
+
+  /* ---------- SAMPLE knowledge base (replace with real retrieval API) ---------- */
+  var KB = [
+    { topic: 'Start a new intake report', keys: ['intake','report','new','screen','screening','referral','hotline','start'], roles: ['intake','supervisor'],
+      steps: ['Open the Intake area from the main navigation.','Choose New Intake and select the report type.','Enter the reporter and allegation details, then save as draft.','Complete the required screening fields and submit for review.'],
+      src: [{ type:'guide', title:'Intake: Creating a Report', meta:'Quick reference · 4 pages · updated Oct 2026' },{ type:'video', title:'Intake walkthrough', meta:'Video · 6 min' }] },
+    { topic: 'Add a case note or contact', keys: ['note','notes','contact','visit','document','documentation','log','narrative'], roles: ['caseworker','supervisor','provider'],
+      steps: ['Open the case and go to Contacts.','Select Add Contact and choose the contact type and date.','Enter participants and write the narrative.','Save. Mark it final only when it is ready for supervisor review.'],
+      src: [{ type:'guide', title:'Documenting Contacts and Case Notes', meta:'Guide · 7 pages · updated Sep 2026' },{ type:'video', title:'Entering a contact note', meta:'Video · 4 min' }] },
+    { topic: 'Reassign or transfer a case', keys: ['reassign','transfer','transferring','assign','move','another','worker','caseload'], roles: ['supervisor'],
+      steps: ['Open the case and select Assignments.','Choose Reassign and pick the receiving worker.','Enter the effective date and reason.','Submit. The receiving worker is notified.'],
+      src: [{ type:'guide', title:'Assignments and Transfers', meta:'Supervisor guide · 5 pages · updated Aug 2026' }] },
+    { topic: 'Request or give supervisor approval', keys: ['approval','approve','approving','supervisor','submit','review','sign','signoff','pending'], roles: ['caseworker','supervisor'],
+      steps: ['Open the item and select Submit for Approval.','The supervisor finds it under My Approvals.','The supervisor reviews, then approves or returns it with comments.','Returned items show the comments on the original record.'],
+      src: [{ type:'guide', title:'Approvals Workflow', meta:'Quick reference · 3 pages · updated Oct 2026' },{ type:'video', title:'Working your approval queue', meta:'Video · 5 min' }] },
+    { topic: 'Find or merge a duplicate person', keys: ['duplicate','merge','person','participant','search','twice','already','exists'], roles: ['caseworker','supervisor','intake','admin'],
+      steps: ['Search the person using Person Search before adding anyone new.','If two records look like the same person, do not delete either.','Submit a Duplicate Review request with both record identifiers.','Data quality staff complete the merge.'],
+      src: [{ type:'guide', title:'Searching Before You Add a Person', meta:'Guide · 4 pages · updated Jul 2026' }] },
+    { topic: 'Fix a login, password or access problem', keys: ['password','login','log','access','locked','reset','account','permission','role','cant','sign'], roles: ['caseworker','supervisor','intake','provider','admin'],
+      steps: ['Use the Forgot Password link on the sign-in page.','If you are locked out, wait 15 minutes or contact the help desk.','If you cannot see a menu you need, ask your supervisor to request a role change.'],
+      src: [{ type:'guide', title:'Accounts, Passwords and Roles', meta:'FAQ · 2 pages · updated Sep 2026' }] },
+    { topic: 'Generate a court report or document', keys: ['court','report','generate','document','template','print','pdf','hearing','legal'], roles: ['caseworker','supervisor'],
+      steps: ['Open the case and select Documents.','Choose Generate and pick the court report template.','Review the pre-filled sections and complete anything marked required.','Save a draft and send for supervisor review before filing.'],
+      src: [{ type:'guide', title:'Court Documents and Templates', meta:'Guide · 9 pages · updated Oct 2026' },{ type:'video', title:'Generating a court report', meta:'Video · 8 min' }] },
+    { topic: 'Search for or request a placement', keys: ['placement','provider','foster','search','bed','resource','home','request','match'], roles: ['caseworker','supervisor','provider'],
+      steps: ['Open the Placement tab and select Find a Placement.','Set the search filters and review matching providers.','Send a placement request to the provider.','Track the response under Placement Requests.'],
+      src: [{ type:'guide', title:'Placement Search and Requests', meta:'Guide · 6 pages · updated Aug 2026' },{ type:'video', title:'Requesting a placement', meta:'Video · 7 min' }] }
+  ];
+  var ROLES = { caseworker:'Caseworker / Investigator', supervisor:'Supervisor', intake:'Statewide Central Intake', provider:'Provider / Placement staff', admin:'Administrative support' };
+  var SUGGEST = ['How do I add a case note?','How do I request supervisor approval?','I can\'t log in','How do I generate a court report?'];
+  var STOP = 'how do i a an the to in on my is it for of and can what where when me we you with this that need want please'.split(' ');
+  var sessionId = Math.random().toString(36).slice(2);
+
+  function tokens(q) { return q.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').split(/\s+/).map(function (w) { return w.replace(/'/g, ''); }).filter(function (w) { return w && STOP.indexOf(w) < 0; }); }
+  function localAnswer(q, role) {
+    var t = tokens(q), best = null, score = 0;
+    KB.forEach(function (e) {
+      var s = 0;
+      t.forEach(function (w) { if (e.keys.some(function (k) { return k === w || (w.length > 3 && (k.indexOf(w) === 0 || w.indexOf(k) === 0)); })) s++; });
+      if (s > score) { score = s; best = e; }
+    });
+    if (!best) return { found: false };
+    var mine = best.roles.indexOf(role) >= 0;
+    return { found: true, confidence: Math.min(1, score / 2),
+      summary: mine ? 'Here is how to ' + best.topic.charAt(0).toLowerCase() + best.topic.slice(1) + '.' : 'This is usually done by ' + best.roles.map(function (r) { return ROLES[r]; }).join(' or ') + ' staff. The steps are below so you know what to ask for.',
+      steps: best.steps, sources: best.src };
+  }
+  function getAnswer(q, role) {
+    if (!cfg.endpoint) return new Promise(function (res) { setTimeout(function () { res(localAnswer(q, role)); }, 700); });
+    return fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ question: q, role: role, sessionId: sessionId }) })
+      .then(function (r) { if (!r.ok) throw new Error('bad status'); return r.json(); })
+      .catch(function () { return { found: false, error: true }; });
+  }
+
+  /* ---------- UI ---------- */
+  var host = document.createElement('div');
+  host.id = 'impact-helpdesk-root';
+  document.body.appendChild(host);
+  var root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<style>' +
+    ':host{all:initial}' +
+    '.w{--bg:#fff;--ink:#16212b;--muted:#5b6875;--line:#dde3e9;--accent:#0d6b8a;--accent-ink:#fff;--soft:#e0f0f5;--bot:#eef2f5;--warn:#9a5b00;--warnbg:#fdf1dc;--good:#1d7a4d;--video:#7a4a9e;font:14px/1.5 Inter,"Segoe UI",system-ui,sans-serif;color:var(--ink)}' +
+    '@media (prefers-color-scheme:dark){.w{--bg:#17212a;--ink:#e8eef3;--muted:#9aa8b5;--line:#2a3742;--accent:#4cb6d6;--accent-ink:#072430;--soft:#14323d;--bot:#1d2933;--warn:#f0b45a;--warnbg:#33270f;--good:#5cc592;--video:#c39be6}}' +
+    '*{box-sizing:border-box}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
+    '.fab{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:2147483000;display:flex;align-items:center;gap:10px;border:0;background:var(--accent);color:var(--accent-ink);height:56px;min-width:56px;padding:0 16px;border-radius:28px;box-shadow:0 6px 20px rgba(0,0,0,.28);font-weight:600}' +
+    '.fab svg{width:26px;height:26px;flex:none}.fab .t{white-space:nowrap}.fab.min .t{display:none}.fab.min{padding:0;justify-content:center;width:56px}' +
+    '.panel{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(max(20px,env(safe-area-inset-bottom,0px)) + 68px);z-index:2147483001;width:384px;height:min(620px,calc(100vh - 110px));background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.32);display:flex;flex-direction:column;overflow:hidden}' +
+    '.panel[hidden]{display:none}' +
+    '.hd{background:var(--accent);color:var(--accent-ink);padding:12px 14px;display:flex;align-items:center;gap:10px}.hd b{font-size:15px;flex:1}' +
+    '.hd button{background:none;border:0;color:inherit;font-size:20px;line-height:1;padding:2px 6px;border-radius:6px}.hd button:hover{background:rgba(255,255,255,.18)}' +
+    '.sub{display:flex;gap:8px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}' +
+    '.sub select{flex:1;min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}' +
+    '.warn{background:var(--warnbg);color:var(--warn);font-size:12px;padding:6px 14px}' +
+    '.msgs{flex:1;min-height:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}' +
+    '.m{display:flex;flex-direction:column;gap:6px;max-width:100%}.m.u{align-items:flex-end}' +
+    '.b{padding:9px 12px;border-radius:12px;overflow-wrap:anywhere;max-width:100%}.u .b{background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:3px}.a .b{background:var(--bot);border-bottom-left-radius:3px;width:100%}' +
+    '.b p{margin:0 0 6px}.b p:last-child{margin:0}.b ol{margin:4px 0 8px;padding-left:20px;display:flex;flex-direction:column;gap:3px}' +
+    '.src{display:flex;flex-direction:column;gap:1px;text-align:left;width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:6px}.src:hover{border-color:var(--accent)}' +
+    '.k{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}.k.video{color:var(--video)}.st{font-weight:600}.sm{font-size:11px;color:var(--muted)}' +
+    '.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.act{border:1px solid var(--line);background:none;padding:3px 9px;border-radius:7px;font-size:12px;color:var(--muted)}.act:hover,.act[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}.act:disabled{opacity:.6;cursor:default}' +
+    '.pill{font-size:11px;font-weight:600;color:var(--good)}.pill.p{color:var(--warn)}' +
+    '.sg{display:flex;flex-wrap:wrap;gap:6px}.sg button{border:1px solid var(--line);background:var(--bg);padding:5px 10px;border-radius:999px;font-size:12px}.sg button:hover{border-color:var(--accent);color:var(--accent)}' +
+    '.dots{display:inline-flex;gap:3px}.dots i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:d 1s infinite}.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}@keyframes d{0%,80%,100%{opacity:.25}40%{opacity:1}}' +
+    '@media (prefers-reduced-motion:reduce){.dots i{animation:none}}' +
+    'form{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--line)}form input{flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}form button{border:0;background:var(--accent);color:var(--accent-ink);border-radius:9px;padding:0 14px;font-weight:600}' +
+    '.fn{font-size:11px;color:var(--muted);padding:0 14px 8px}' +
+    '@media (max-width:480px){.panel{right:0;left:0;bottom:0;width:auto;height:100%;border-radius:0;border:0;padding-bottom:env(safe-area-inset-bottom,0px)}.fab{bottom:max(16px,env(safe-area-inset-bottom,0px))}}' +
+    '</style>' +
+    '<div class="w">' +
+    '<section class="panel" id="panel" role="dialog" aria-label="' + cfg.title + '" hidden>' +
+    '<div class="hd"><b>' + cfg.title + '</b><button id="reset" title="New question" aria-label="Start over">&#8635;</button><button id="close" aria-label="Close help">&times;</button></div>' +
+    '<div class="sub"><label for="role">I am a</label><select id="role"></select></div>' +
+    '<div class="warn">Do not type client names or case numbers.</div>' +
+    '<div class="msgs" id="msgs" aria-live="polite"></div>' +
+    '<form id="f" autocomplete="off"><input id="q" type="text" placeholder="Ask how to do something…" aria-label="Your question"><button type="submit">Ask</button></form>' +
+    '<div class="fn">Answers come from approved RedMane guides and videos. Prototype uses sample content.</div>' +
+    '</section>' +
+    '<button class="fab" id="fab" aria-expanded="false" aria-controls="panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9.6 9.5a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1 .8-1 1.6M12 16.4v.1"/></svg><span class="t">Need help?</span></button>' +
+    '</div>';
+
+  function $(id) { return root.getElementById(id); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  var msgs = $('msgs'), busy = false;
+  function down() { msgs.scrollTop = msgs.scrollHeight; }
+
+  Object.keys(ROLES).forEach(function (k) { var o = el('option', null, ROLES[k]); o.value = k; if (k === cfg.role) o.selected = true; $('role').appendChild(o); });
+
+  function suggestions() {
+    var w = el('div', 'sg'); SUGGEST.forEach(function (s) { var b = el('button', null, s); b.type = 'button'; b.onclick = function () { ask(s); }; w.appendChild(b); }); return w;
+  }
+  function welcome() {
+    msgs.innerHTML = '';
+    var m = el('div', 'm a'), b = el('div', 'b'); b.appendChild(el('p', null, 'Hi. Ask me how to do a task in IMPACT and I will show the steps and link the guide or video.'));
+    m.appendChild(b); m.appendChild(suggestions()); msgs.appendChild(m);
+  }
+  function user(t) { var m = el('div', 'm u'); m.appendChild(el('div', 'b', t)); msgs.appendChild(m); down(); }
+  function escalate(btn, q) {
+    if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Sent to help desk';
+    if (cfg.escalateUrl) { try { fetch(cfg.escalateUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ question: q, sessionId: sessionId }) }); } catch (e) {} }
+  }
+  function answer(r, q) {
+    var m = el('div', 'm a'), b = el('div', 'b');
+    if (!r.found) {
+      b.appendChild(el('p', null, r.error ? 'I could not reach the help service. Please try again or contact the help desk.' : 'I could not find an approved guide or video for that, so I will not guess.'));
+      var row = el('div', 'row'), eb = el('button', 'act', 'Send to help desk'); eb.type = 'button'; eb.onclick = function () { escalate(eb, q); }; row.appendChild(eb); b.appendChild(row);
+      m.appendChild(b); m.appendChild(suggestions()); msgs.appendChild(m); down(); return;
+    }
+    b.appendChild(el('p', null, r.summary));
+    if (r.steps && r.steps.length) { var ol = el('ol'); r.steps.forEach(function (s) { ol.appendChild(el('li', null, s)); }); b.appendChild(ol); }
+    (r.sources || []).forEach(function (s) {
+      var c = el(s.url ? 'a' : 'button', 'src'); if (s.url) { c.href = s.url; c.target = '_blank'; c.rel = 'noopener'; c.style.color = 'inherit'; c.style.textDecoration = 'none'; } else { c.type = 'button'; c.onclick = function () { c.querySelector('.sm').textContent = 'In production this opens the RedMane ' + s.type + ' in a new tab.'; }; }
+      c.appendChild(el('span', 'k ' + s.type, s.type === 'video' ? 'Video' : 'Guide')); c.appendChild(el('span', 'st', s.title)); c.appendChild(el('span', 'sm', s.meta || '')); b.appendChild(c);
+    });
+    var row2 = el('div', 'row'), voted = false;
+    ['Helpful', 'Not what I needed'].forEach(function (lbl, i) { var x = el('button', 'act', lbl); x.type = 'button'; x.setAttribute('aria-pressed', 'false'); x.onclick = function () { if (voted) return; voted = true; x.setAttribute('aria-pressed', 'true'); if (cfg.endpoint) { try { fetch(cfg.endpoint.replace(/\/?$/, '') + '/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ sessionId: sessionId, question: q, helpful: i === 0 }) }); } catch (e) {} } }; row2.appendChild(x); });
+    var eb2 = el('button', 'act', 'Ask a person'); eb2.type = 'button'; eb2.onclick = function () { escalate(eb2, q); }; row2.appendChild(eb2);
+    b.appendChild(row2);
+    m.appendChild(b); m.appendChild(el('span', 'pill' + (r.confidence >= .6 ? '' : ' p'), r.confidence >= .6 ? 'Strong match' : 'Partial match')); msgs.appendChild(m); down();
+  }
+  function ask(text) {
+    text = (text || '').trim(); if (!text || busy) return; busy = true; user(text); $('q').value = '';
+    var s = el('div', 'm a'), d = el('div', 'b'); d.innerHTML = '<span class="dots"><i></i><i></i><i></i></span> Searching approved guides and videos…'; s.appendChild(d); msgs.appendChild(s); down();
+    getAnswer(text, $('role').value).then(function (r) { s.remove(); answer(r, text); busy = false; $('q').focus(); });
+  }
+
+  function open(o) {
+    $('panel').hidden = !o; $('fab').setAttribute('aria-expanded', String(o)); $('fab').classList.toggle('min', o);
+    if (o) { if (!msgs.children.length) welcome(); setTimeout(function () { $('q').focus(); }, 0); } else { $('fab').focus(); }
+  }
+  $('fab').onclick = function () { open($('panel').hidden); };
+  $('close').onclick = function () { open(false); };
+  $('reset').onclick = welcome;
+  $('f').addEventListener('submit', function (e) { e.preventDefault(); ask($('q').value); });
+  root.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('panel').hidden) open(false); });
+
+  window.ImpactHelpDesk = { open: function () { open(true); }, close: function () { open(false); } };
+})();
+
+</script>
+
+</body>
+</html>
