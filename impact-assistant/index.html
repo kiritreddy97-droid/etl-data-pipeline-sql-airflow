@@ -1,0 +1,373 @@
+<title>IMPACT Help Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: service-desk app. Left rail = role + topics; center = conversation with source cards; second tab = admin insights. */
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --ink: #16212b;
+  --muted: #5b6875;
+  --line: #dde3e9;
+  --accent: #0d6b8a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0f0f5;
+  --bot: #eef2f5;
+  --good: #1d7a4d;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dc;
+  --guide: #0d6b8a;
+  --video: #7a4a9e;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f161c; --panel: #17212a; --ink: #e8eef3; --muted: #9aa8b5; --line: #2a3742;
+    --accent: #4cb6d6; --accent-ink: #072430; --accent-soft: #14323d; --bot: #1d2933;
+    --good: #5cc592; --warn: #f0b45a; --warn-soft: #33270f; --guide: #4cb6d6; --video: #c39be6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f161c; --panel: #17212a; --ink: #e8eef3; --muted: #9aa8b5; --line: #2a3742;
+  --accent: #4cb6d6; --accent-ink: #072430; --accent-soft: #14323d; --bot: #1d2933;
+  --good: #5cc592; --warn: #f0b45a; --warn-soft: #33270f; --guide: #4cb6d6; --video: #c39be6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-columns: 288px minmax(0, 1fr); padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+.rail { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 20px; padding: 20px 16px; overflow-y: auto; min-height: 0; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.mark { width: 36px; height: 36px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.brand h1 { font-family: var(--font-display); font-size: 17px; margin: 0; line-height: 1.2; }
+.brand p { margin: 0; font-size: 12px; color: var(--muted); }
+.label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.field select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+.topics { display: flex; flex-direction: column; gap: 2px; }
+.topic { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; color: var(--ink); display: flex; justify-content: space-between; gap: 8px; }
+.topic:hover { background: var(--accent-soft); }
+.topic small { color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 10px; margin-top: auto; }
+
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.top { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs { display: flex; gap: 4px; background: var(--bg); padding: 3px; border-radius: 10px; }
+.tab { border: 0; background: none; padding: 6px 14px; border-radius: 8px; color: var(--muted); font-weight: 500; }
+.tab[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.spacer { flex: 1; }
+.chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.ghost { border: 1px solid var(--line); background: none; padding: 6px 12px; border-radius: 8px; }
+.ghost:hover { background: var(--bg); }
+.menu-btn { display: none; }
+
+.banner { background: var(--warn-soft); color: var(--warn); font-size: 13px; padding: 8px 20px; border-bottom: 1px solid var(--line); }
+
+.view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stream { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 18px; }
+.col { width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.msg { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.msg.user { align-items: flex-end; }
+.bubble { padding: 11px 14px; border-radius: 14px; max-width: min(100%, 640px); overflow-wrap: anywhere; }
+.user .bubble { background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.bot .bubble { background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; width: 100%; max-width: 100%; }
+.bubble p { margin: 0 0 8px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble ol { margin: 6px 0 10px; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+.pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.pill.ok { color: var(--good); border-color: currentColor; }
+.pill.hint { color: var(--warn); border-color: currentColor; }
+.sources { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-top: 10px; }
+.src { text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.src:hover { border-color: var(--accent); }
+.src .kind { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.src .kind.guide { color: var(--guide); }
+.src .kind.video { color: var(--video); }
+.src .t { font-weight: 600; font-size: 14px; }
+.src .s { font-size: 12px; color: var(--muted); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.act { border: 1px solid var(--line); background: none; padding: 4px 10px; border-radius: 8px; font-size: 13px; color: var(--muted); }
+.act:hover, .act[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.sugg { display: flex; flex-wrap: wrap; gap: 8px; }
+.sugg button { border: 1px solid var(--line); background: var(--panel); padding: 7px 12px; border-radius: 999px; font-size: 13px; }
+.sugg button:hover { border-color: var(--accent); color: var(--accent); }
+.status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: b 1s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes b { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dots i { animation: none; } }
+
+.composer { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 20px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+.composer form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+.composer input { flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
+.send { background: var(--accent); color: var(--accent-ink); border: 0; padding: 0 18px; border-radius: 10px; font-weight: 600; }
+.fine { max-width: 760px; margin: 6px auto 0; font-size: 12px; color: var(--muted); }
+
+/* insights */
+.insights { overflow-y: auto; padding: 24px 20px; }
+.insights .col { gap: 22px; }
+.insights h2 { font-family: var(--font-display); font-size: 20px; margin: 0; }
+.insights h3 { font-family: var(--font-display); font-size: 15px; margin: 0 0 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.grid2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.bar { display: grid; grid-template-columns: minmax(0, 150px) 1fr 36px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 8px; }
+.bar .track { height: 10px; background: var(--bot); border-radius: 5px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 5px; }
+.bar span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.gap-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.gap-row:first-of-type { border-top: 0; }
+.gap-row small { color: var(--muted); display: block; }
+.gap-row b { font-variant-numeric: tabular-nums; color: var(--warn); white-space: nowrap; }
+.sample { font-size: 12px; color: var(--warn); background: var(--warn-soft); padding: 4px 10px; border-radius: 6px; width: fit-content; }
+
+.toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; max-width: calc(100% - 32px); z-index: 20; }
+
+@media (max-width: 800px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); z-index: 15; transform: translateX(-100%); transition: transform .2s; padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+  .rail.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.35); }
+  .menu-btn { display: inline-block; }
+  .top, .stream, .composer, .banner, .insights { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .bar { grid-template-columns: minmax(0, 110px) 1fr 32px; }
+}
+</style>
+
+<div class="app">
+  <aside class="rail" id="rail" aria-label="Topics and role">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">I</div>
+      <div><h1>IMPACT Help Desk</h1><p>Ask how to do it. Get the guide.</p></div>
+    </div>
+    <div class="field">
+      <p class="label"><label for="role">I am a</label></p>
+      <select id="role">
+        <option value="caseworker">Caseworker / Investigator</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="intake">Statewide Central Intake</option>
+        <option value="provider">Provider / Placement staff</option>
+        <option value="admin">Administrative support</option>
+      </select>
+    </div>
+    <div>
+      <p class="label">Common tasks</p>
+      <div class="topics" id="topics"></div>
+    </div>
+    <div class="note">Prototype. Answers and resource links are sample content for demonstration. They are not real IMPACT guidance.</div>
+  </aside>
+
+  <section class="main">
+    <header class="top">
+      <button class="ghost menu-btn" id="menu" aria-label="Open topics">Topics</button>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-chat" aria-selected="true">Ask</button>
+        <button class="tab" role="tab" id="tab-ins" aria-selected="false">Insights</button>
+      </div>
+      <span class="chip" id="rolechip">Caseworker</span>
+      <span class="spacer"></span>
+      <button class="ghost" id="newchat">New question</button>
+      <button class="ghost" id="theme" aria-label="Toggle theme">Theme</button>
+    </header>
+    <div class="banner">Do not type client names, case numbers or other identifying details. Ask about the task, not the person.</div>
+
+    <div class="view" id="view-chat">
+      <div class="stream" id="stream"><div class="col" id="col"></div></div>
+      <div class="composer">
+        <form id="form" autocomplete="off">
+          <input id="q" type="text" placeholder="Ask how to do something in IMPACT…" aria-label="Your question">
+          <button class="send" type="submit">Ask</button>
+        </form>
+        <p class="fine">Answers come only from approved RedMane guides and videos. If there is no match, you can send the question to the help desk.</p>
+      </div>
+    </div>
+
+    <div class="view insights" id="view-ins" hidden>
+      <div class="col">
+        <div>
+          <h2>What staff are asking</h2>
+          <p style="color:var(--muted);margin:4px 0 8px">For the training lead and program managers. Shows where staff get stuck and which resources are missing.</p>
+          <p class="sample">Illustrative numbers, not real usage</p>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h3>Top topics this week</h3>
+            <div id="bars"></div>
+          </div>
+          <div class="card">
+            <h3>Questions with no good answer</h3>
+            <p style="color:var(--muted);font-size:13px;margin:-4px 0 8px">Each one is a candidate for a new guide or video.</p>
+            <div id="gaps"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Answer quality</h3>
+          <div class="grid2" style="gap:12px">
+            <div><b style="font-size:24px;font-family:var(--font-display)" id="m-helpful">—</b><br><span style="color:var(--muted);font-size:13px">marked helpful (this session)</span></div>
+            <div><b style="font-size:24px;font-family:var(--font-display)" id="m-asked">0</b><br><span style="color:var(--muted);font-size:13px">questions asked (this session)</span></div>
+            <div><b style="font-size:24px;font-family:var(--font-display)" id="m-esc">0</b><br><span style="color:var(--muted);font-size:13px">sent to the help desk (this session)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- Sample knowledge base (stand-in for the RedMane resource library) ---------- */
+const KB = [
+  { id:'intake', topic:'Start a new intake report', keys:['intake','report','new','screen','screening','referral','hotline','start'],
+    roles:['intake','supervisor'], steps:['Open the Intake area from the main navigation.','Choose New Intake and select the report type.','Enter the reporter and allegation details, then save as draft.','Complete the required screening fields and submit for review.'],
+    src:[{k:'guide',t:'Intake: Creating a Report',s:'Quick reference · 4 pages · updated Oct 2026'},{k:'video',t:'Intake walkthrough',s:'Video · 6 min'}] },
+  { id:'note', topic:'Add a case note or contact', keys:['note','notes','contact','visit','document','documentation','log','narrative'],
+    roles:['caseworker','supervisor','provider'], steps:['Open the case and go to Contacts.','Select Add Contact and choose the contact type and date.','Enter participants and write the narrative.','Save. Mark it final only when it is ready for supervisor review.'],
+    src:[{k:'guide',t:'Documenting Contacts and Case Notes',s:'Step-by-step guide · 7 pages · updated Sep 2026'},{k:'video',t:'Entering a contact note',s:'Video · 4 min'}] },
+  { id:'reassign', topic:'Reassign or transfer a case', keys:['reassign','transfer','transferring','assign','move','another','worker','caseload'],
+    roles:['supervisor'], steps:['Open the case and select Assignments.','Choose Reassign and pick the receiving worker.','Enter the effective date and reason.','Submit. The receiving worker is notified.'],
+    src:[{k:'guide',t:'Assignments and Transfers',s:'Supervisor guide · 5 pages · updated Aug 2026'}] },
+  { id:'approval', topic:'Request or give supervisor approval', keys:['approval','approve','approving','supervisor','submit','review','sign','signoff','pending'],
+    roles:['caseworker','supervisor'], steps:['Open the item and select Submit for Approval.','The supervisor finds it under My Approvals.','The supervisor reviews, then approves or returns it with comments.','Returned items show the comments on the original record.'],
+    src:[{k:'guide',t:'Approvals Workflow',s:'Quick reference · 3 pages · updated Oct 2026'},{k:'video',t:'Working your approval queue',s:'Video · 5 min'}] },
+  { id:'duplicate', topic:'Find or merge a duplicate person', keys:['duplicate','merge','person','participant','search','twice','already','exists'],
+    roles:['caseworker','supervisor','intake','admin'], steps:['Search the person using the Person Search before adding anyone new.','If two records look like the same person, do not delete either.','Submit a Duplicate Review request with both record identifiers.','Data quality staff complete the merge.'],
+    src:[{k:'guide',t:'Searching Before You Add a Person',s:'Guide · 4 pages · updated Jul 2026'}] },
+  { id:'access', topic:'Login, password or access problem', keys:['password','login','log','access','locked','reset','account','permission','role','cant','sign'],
+    roles:['caseworker','supervisor','intake','provider','admin'], steps:['Use the Forgot Password link on the sign-in page.','If you are locked out, wait 15 minutes or contact the help desk.','If you cannot see a menu you need, ask your supervisor to request a role change.'],
+    src:[{k:'guide',t:'Accounts, Passwords and Roles',s:'FAQ · 2 pages · updated Sep 2026'}] },
+  { id:'court', topic:'Generate a court report or document', keys:['court','report','generate','document','template','print','pdf','hearing','legal'],
+    roles:['caseworker','supervisor'], steps:['Open the case and select Documents.','Choose Generate and pick the court report template.','Review the pre-filled sections and complete anything marked required.','Save a draft and send for supervisor review before filing.'],
+    src:[{k:'guide',t:'Court Documents and Templates',s:'Guide · 9 pages · updated Oct 2026'},{k:'video',t:'Generating a court report',s:'Video · 8 min'}] },
+  { id:'placement', topic:'Search for or request a placement', keys:['placement','provider','foster','search','bed','resource','home','request','match'],
+    roles:['caseworker','supervisor','provider'], steps:['Open the child\'s Placement tab and select Find a Placement.','Set the search filters and review matching providers.','Send a placement request to the provider.','Track the response under Placement Requests.'],
+    src:[{k:'guide',t:'Placement Search and Requests',s:'Guide · 6 pages · updated Aug 2026'},{k:'video',t:'Requesting a placement',s:'Video · 7 min'}] }
+];
+const SUGGEST = ['How do I add a case note?','How do I request supervisor approval?','I can\'t log in','How do I generate a court report?'];
+const ROLES = { caseworker:'Caseworker', supervisor:'Supervisor', intake:'Intake', provider:'Provider', admin:'Admin support' };
+const STOP = new Set('how do i a an the to in on my is it for of and can what where when me we you with this that need want please'.split(' '));
+
+/* ---------- State ---------- */
+const $ = id => document.getElementById(id);
+const stats = { asked:0, up:0, down:0, esc:0 };
+let busy = false;
+
+/* ---------- Helpers ---------- */
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2800); }
+function scrollDown(){ const s=$('stream'); s.scrollTop=s.scrollHeight; }
+function tokens(q){ return q.toLowerCase().replace(/[^a-z0-9\s']/g,' ').split(/\s+/).map(w=>w.replace(/'/g,'')).filter(w=>w && !STOP.has(w)); }
+function match(q){
+  const t = tokens(q); if(!t.length) return null;
+  let best=null, score=0;
+  for(const e of KB){
+    let s=0; for(const w of t){ if(e.keys.some(k=>k===w || (w.length>3 && (k.startsWith(w)||w.startsWith(k))))) s++; }
+    if(s>score){ score=s; best=e; }
+  }
+  return score>=1 ? { entry:best, score, conf: Math.min(1, score/Math.max(2,t.length)) } : null;
+}
+
+/* ---------- Rendering ---------- */
+function addUser(text){ const m=el('div','msg user'); m.append(el('div','bubble',text)); $('col').append(m); scrollDown(); }
+function addStatus(){
+  const m=el('div','msg bot'); const s=el('div','status'); const d=el('span','dots'); d.innerHTML='<i></i><i></i><i></i>';
+  s.append(d, el('span',null,'Searching approved guides and videos…')); m.append(s); $('col').append(m); scrollDown(); return m;
+}
+function suggestions(){
+  const w=el('div','sugg'); SUGGEST.forEach(s=>{ const b=el('button',null,s); b.type='button'; b.addEventListener('click',()=>ask(s)); w.append(b); }); return w;
+}
+function welcome(){
+  const col=$('col'); col.innerHTML='';
+  const m=el('div','msg bot'); const b=el('div','bubble');
+  b.append(el('p',null,'Hi. I can show you how to do a task in IMPACT and point you to the matching guide or video. Pick a question or type your own.'));
+  m.append(b, suggestions()); col.append(m);
+}
+function addAnswer(r, q){
+  const role = $('role').value;
+  const m=el('div','msg bot'); const b=el('div','bubble'); const e=r.entry;
+  const forYou = e.roles.includes(role);
+  b.append(el('p',null, forYou ? `Here is how to ${e.topic.charAt(0).toLowerCase()+e.topic.slice(1)}.` : `This task is usually done by ${e.roles.map(x=>ROLES[x]).join(' or ')} staff. The steps are below, so you know what to ask for.`));
+  const ol=el('ol'); e.steps.forEach(s=>ol.append(el('li',null,s))); b.append(ol);
+  const lbl=el('p',null,'Go deeper:'); lbl.style.fontWeight='600'; lbl.style.marginTop='4px'; b.append(lbl);
+  const grid=el('div','sources');
+  e.src.forEach(x=>{
+    const c=el('button','src'); c.type='button';
+    c.append(el('span','kind '+x.k, x.k==='video'?'Video':'Guide'), el('span','t',x.t), el('span','s',x.s));
+    c.addEventListener('click',()=>toast('In production this opens the RedMane '+(x.k==='video'?'video':'guide')+' in a new tab.'));
+    grid.append(c);
+  });
+  b.append(grid);
+  const act=el('div','actions');
+  const up=el('button','act','Helpful'); up.type='button'; up.setAttribute('aria-pressed','false');
+  const dn=el('button','act','Not what I needed'); dn.type='button'; dn.setAttribute('aria-pressed','false');
+  const esc=el('button','act','Ask a person'); esc.type='button';
+  let voted=false;
+  up.addEventListener('click',()=>{ if(voted) return; voted=true; stats.up++; up.setAttribute('aria-pressed','true'); toast('Thanks. This helps us improve answers.'); updStats(); });
+  dn.addEventListener('click',()=>{ if(voted) return; voted=true; stats.down++; dn.setAttribute('aria-pressed','true'); toast('Noted. Try rewording, or ask a person.'); updStats(); });
+  esc.addEventListener('click',()=>escalate(q, esc));
+  act.append(up,dn,esc); b.append(act);
+  const meta=el('div','meta');
+  const pill=el('span','pill '+(r.conf>=.6?'ok':'hint'), r.conf>=.6?'Strong match':'Partial match');
+  meta.append(pill, el('span',null,'Source: approved RedMane resources'));
+  m.append(b, meta); $('col').append(m); scrollDown();
+}
+function addNoMatch(q){
+  const m=el('div','msg bot'); const b=el('div','bubble');
+  b.append(el('p',null,'I could not find an approved guide or video that answers that, so I will not guess.'));
+  b.append(el('p',null,'You can send it to the help desk. The question is also logged so the training team can add a resource.'));
+  const act=el('div','actions'); const esc=el('button','act','Send to help desk'); esc.type='button'; esc.addEventListener('click',()=>escalate(q,esc));
+  act.append(esc); b.append(act); m.append(b, suggestions()); $('col').append(m); scrollDown();
+}
+function escalate(q, btn){
+  if(btn.disabled) return; btn.disabled=true; btn.textContent='Sent to help desk'; stats.esc++; updStats();
+  toast('Question sent with the conversation so you do not have to repeat it.');
+}
+function updStats(){
+  $('m-asked').textContent=stats.asked; $('m-esc').textContent=stats.esc;
+  const v=stats.up+stats.down; $('m-helpful').textContent = v? Math.round(100*stats.up/v)+'%' : '—';
+}
+function ask(text){
+  text=text.trim(); if(!text||busy) return; busy=true; stats.asked++; updStats();
+  addUser(text); $('q').value='';
+  const s=addStatus();
+  setTimeout(()=>{ s.remove(); const r=match(text); r?addAnswer(r,text):addNoMatch(text); busy=false; $('q').focus(); }, 750);
+}
+
+/* ---------- Topics rail ---------- */
+function renderTopics(){
+  const role=$('role').value, w=$('topics'); w.innerHTML='';
+  KB.filter(e=>e.roles.includes(role)).forEach(e=>{
+    const b=el('button','topic'); b.type='button'; b.append(el('span',null,e.topic), el('small',null,e.src.length+' res.'));
+    b.addEventListener('click',()=>{ $('rail').classList.remove('open'); showTab('chat'); ask('How do I '+e.topic.toLowerCase()+'?'); });
+    w.append(b);
+  });
+  $('rolechip').textContent = ROLES[role];
+}
+
+/* ---------- Insights (illustrative) ---------- */
+const TOP=[['Case notes & contacts',86],['Approvals',64],['Court documents',51],['Login & access',47],['Placement search',33],['Duplicate persons',21]];
+const GAPS=[['Entering a late court date change','14 asks'],['Bulk upload of provider documents','9 asks'],['Printing a blank safety assessment','7 asks'],['Supervisor delegation while on leave','6 asks']];
+function renderInsights(){
+  const max=Math.max(...TOP.map(x=>x[1]));
+  $('bars').innerHTML=''; TOP.forEach(([n,v])=>{ const r=el('div','bar'); const tr=el('div','track'); const f=el('div','fill'); f.style.width=(100*v/max)+'%'; tr.append(f); r.append(el('span',null,n),tr,el('span',null,String(v))); $('bars').append(r); });
+  $('gaps').innerHTML=''; GAPS.forEach(([n,c])=>{ const r=el('div','gap-row'); const l=el('div'); l.append(el('span',null,n), el('small',null,'No matching resource yet')); r.append(l, el('b',null,c)); $('gaps').append(r); });
+}
+
+/* ---------- Tabs, theme, wiring ---------- */
+function showTab(t){
+  const chat=t==='chat'; $('view-chat').hidden=!chat; $('view-ins').hidden=chat;
+  $('tab-chat').setAttribute('aria-selected',chat); $('tab-ins').setAttribute('aria-selected',!chat);
+}
+$('tab-chat').onclick=()=>showTab('chat'); $('tab-ins').onclick=()=>showTab('ins');
+$('menu').onclick=()=>$('rail').classList.toggle('open');
+$('role').onchange=()=>{ renderTopics(); toast('Showing tasks for '+ROLES[$('role').value]); };
+$('newchat').onclick=()=>{ showTab('chat'); welcome(); };
+$('form').addEventListener('submit',e=>{ e.preventDefault(); ask($('q').value); });
+$('theme').onclick=()=>{ const r=document.documentElement; const dark = r.dataset.theme ? r.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark?'light':'dark'; };
+
+renderTopics(); renderInsights(); welcome(); updStats();
+</script>
